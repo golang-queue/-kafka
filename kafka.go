@@ -6,16 +6,20 @@ import (
 
 	"github.com/golang-queue/queue"
 	"github.com/golang-queue/queue/core"
+	kafkaAPI "github.com/segmentio/kafka-go"
 )
 
 var _ core.Worker = (*Worker)(nil)
 
 type Worker struct {
+	//
+	//shutdown  func() //
 	stop      chan struct{}
 	stopFlag  int32
 	stopOnce  sync.Once
 	startOnce sync.Once
 	opts      options
+	conn      kafkaAPI.Dialer
 }
 
 func NewWorker(opts ...Option) *Worker {
