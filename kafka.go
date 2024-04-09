@@ -2,11 +2,9 @@ package kafka
 
 import (
 	"context"
-	"sync"
 
 	"github.com/golang-queue/queue"
 	"github.com/golang-queue/queue/core"
-	kafkaAPI "github.com/segmentio/kafka-go"
 )
 
 var _ core.Worker = (*Worker)(nil)
@@ -14,12 +12,12 @@ var _ core.Worker = (*Worker)(nil)
 type Worker struct {
 	//
 	//shutdown  func() //
-	stop      chan struct{}
-	stopFlag  int32
-	stopOnce  sync.Once
-	startOnce sync.Once
-	opts      options
-	conn      kafkaAPI.Dialer
+	// stop      chan struct{}
+	// stopFlag  int32
+	// stopOnce  sync.Once
+	// startOnce sync.Once
+	opts options
+	// conn      kafkaAPI.Dialer
 }
 
 func NewWorker(opts ...Option) *Worker {
@@ -60,7 +58,7 @@ func (w *Worker) Queue(job core.QueuedMessage) (err error) {
 }
 
 func (w *Worker) Request() (core.QueuedMessage, error) {
-
+	_ = w.startConsumer()
 	return nil, queue.ErrNoTaskInQueue
 
 }
