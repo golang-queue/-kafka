@@ -7,8 +7,8 @@ go 1.18
 require (
 	github.com/golang-queue/queue v0.1.4-0.20221230133718-0314ef173f98
 	github.com/segmentio/kafka-go v0.4.47
-	github.com/stretchr/testify v1.9.0
-	go.uber.org/goleak v1.3.0
+	github.com/stretchr/testify v1.8.4
+	go.uber.org/goleak v1.2.1
 )
 
 require (
