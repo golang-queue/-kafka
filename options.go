@@ -14,6 +14,7 @@ type options struct {
 	runFunc   func(context.Context, core.QueuedMessage) error
 	logger    queue.Logger
 	addr      string
+	network   string
 	queue     string
 	topic     string
 	partition int //kafka's partition
@@ -23,6 +24,12 @@ type options struct {
 func WithAddr(addr string) Option {
 	return func(w *options) {
 		w.addr = addr
+	}
+}
+
+func WithNetwork(network string) Option {
+	return func(w *options) {
+		w.network = network
 	}
 }
 
