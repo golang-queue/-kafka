@@ -5,19 +5,21 @@ import (
 
 	"github.com/golang-queue/queue"
 	"github.com/golang-queue/queue/core"
+	"github.com/segmentio/kafka-go/compress"
 )
 
 // Option for queue system
 type Option func(*options)
 
 type options struct {
-	runFunc   func(context.Context, core.QueuedMessage) error
-	logger    queue.Logger
-	addr      string
-	network   string
-	queue     string
-	topic     string
-	partition int //kafka's partition
+	runFunc     func(context.Context, core.QueuedMessage) error
+	logger      queue.Logger
+	addr        string
+	network     string
+	queue       string
+	topic       string
+	partition   int //kafka's partition
+	compression compress.Codec
 }
 
 // WithAddr setup the URI
@@ -51,6 +53,13 @@ func WithPartition(partition int) Option {
 func WithQueue(val string) Option {
 	return func(w *options) {
 		w.queue = val
+	}
+}
+
+// WithAddr setup the URI
+func WithCompress(compress compress.Codec) Option {
+	return func(w *options) {
+		w.compression = compress
 	}
 }
 

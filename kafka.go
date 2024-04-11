@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"sync/atomic"
+	"time"
 
 	"github.com/golang-queue/queue"
 	"github.com/golang-queue/queue/core"
@@ -68,8 +69,22 @@ func (w *Worker) Queue(job core.QueuedMessage) (err error) {
 	if atomic.LoadInt32(&w.stopFlag) == 1 {
 		return queue.ErrQueueShutdown
 	}
-	return err
+	// send message
+	base := time.Now()
 
+	msg := kafkaAPI.Message{
+		Time:  base.Truncate(time.Millisecond),
+		Value: job.Bytes(),
+	}
+	if w.opts.compression == nil {
+		_, err = w.conn.WriteMessages(msg)
+	} else {
+		_, err = w.conn.WriteCompressedMessages(w.opts.compression, msg)
+	}
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	return err
 }
 
 func (w *Worker) Request() (core.QueuedMessage, error) {
