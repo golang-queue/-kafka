@@ -20,11 +20,8 @@ var kafkaConsumer *KafkaConsumer
 
 type KafkaConsumer struct {
 	//stopFlag int32
-	opts options
-	//conn     *kafkaAPI.Conn
-	//client   *kafkaAPI.Client
+	opts   options
 	reader *kafkaAPI.Reader
-	//shutdown func()
 }
 type ConnWaitGroup struct {
 	DialFunc func(context.Context, string, string) (net.Conn, error)
