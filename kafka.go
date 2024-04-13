@@ -47,9 +47,15 @@ func InitConsumer(opts ...Option) {
 	// kafkaConsumer.conn = conn
 
 	// 创建client，创建topic，创建shutdown
-	client, shutdown := newLocalClientAndTopic(kafkaConsumer.opts.topic)
+	client, shutdown := newLocalClientAndTopic(kafkaConsumer.opts.addr, kafkaConsumer.opts.topic,
+		kafkaConsumer.opts.partition)
 	kafkaConsumer.client = client
 	kafkaConsumer.shutdown = shutdown
+
+	fmt.Printf("get data.\n")
+	GetData()
+	shutdown()
+	fmt.Printf("shutdown now!!!\n")
 	//return err
 }
 
@@ -76,14 +82,14 @@ func newClient(addr net.Addr) (*kafkaAPI.Client, func()) {
 	return client, func() { transport.CloseIdleConnections(); conns.Wait() }
 }
 
-func newLocalClientAndTopic(topic string) (*kafkaAPI.Client, func()) {
+func newLocalClientAndTopic(address string, topic string, partition int) (*kafkaAPI.Client, func()) {
 	//topic := makeTopic()
-	client, shutdown := newLocalClientWithTopic(topic, 1)
+	client, shutdown := newLocalClientWithTopic(address, topic, partition)
 	return client, shutdown
 }
 
-func newLocalClientWithTopic(topic string, partitions int) (*kafkaAPI.Client, func()) {
-	client, shutdown := newLocalClient(topic)
+func newLocalClientWithTopic(address string, topic string, partitions int) (*kafkaAPI.Client, func()) {
+	client, shutdown := newLocalClient(address)
 	if err := clientCreateTopic(client, topic, partitions); err != nil {
 		shutdown()
 		panic(err)
@@ -145,7 +151,7 @@ func GetData() {
 		fmt.Printf("start fetch data")
 		res, err := kafkaConsumer.client.Fetch(context.Background(), &kafkaAPI.FetchRequest{
 			Topic:     kafkaConsumer.opts.topic,
-			Partition: 0,
+			Partition: kafkaConsumer.opts.partition,
 			Offset:    0,
 			MinBytes:  1,
 			MaxBytes:  64 * 1024,

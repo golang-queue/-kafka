@@ -31,9 +31,9 @@ func TestFetchData(t *testing.T) {
 	// assert.Error(t, err)
 	// assert.Equal(t, queue.ErrQueueShutdown, err)
 	// q.Wait()
-	fmt.Printf("start")
+	fmt.Printf("start\n")
 	InitConsumer(WithAddr("localhost"),
 		WithPartition(1),
 		WithTopic("hello"))
-	fmt.Printf("end")
+	fmt.Printf("end\n")
 }
