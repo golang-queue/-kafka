@@ -11,7 +11,6 @@ import (
 	"github.com/golang-queue/queue"
 	"github.com/golang-queue/queue/core"
 	kafkaAPI "github.com/segmentio/kafka-go"
-	ktesting "github.com/segmentio/kafka-go/testing"
 )
 
 var _ core.Worker = (*Worker)(nil)
@@ -23,8 +22,9 @@ type KafkaConsumer struct {
 	//stopFlag int32
 	opts options
 	//conn     *kafkaAPI.Conn
-	client   *kafkaAPI.Client
-	shutdown func()
+	//client   *kafkaAPI.Client
+	reader *kafkaAPI.Reader
+	//shutdown func()
 }
 type ConnWaitGroup struct {
 	DialFunc func(context.Context, string, string) (net.Conn, error)
@@ -37,104 +37,105 @@ func InitConsumer(opts ...Option) {
 	kafkaConsumer = &KafkaConsumer{
 		opts: newOptions(opts...),
 	}
-	// // connect to broker
-	// // 需要解决自动重连的问题
-	// conn, err :=
-	// 	(&kafkaAPI.Dialer{
-	// 		Resolver: &net.Resolver{},
-	// 	}).DialLeader(context.Background(), kafkaConsumer.opts.network,
-	// 		kafkaConsumer.opts.addr, kafkaConsumer.opts.topic, 0)
-	// kafkaConsumer.conn = conn
+
+	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	// 创建client，创建topic，创建shutdown
-	client, shutdown := newLocalClientAndTopic(kafkaConsumer.opts.addr, kafkaConsumer.opts.topic,
-		kafkaConsumer.opts.partition)
-	kafkaConsumer.client = client
-	kafkaConsumer.shutdown = shutdown
-
+	// client, shutdown := newLocalClientAndTopic(kafkaConsumer.opts.addr, kafkaConsumer.opts.topic,
+	// 	kafkaConsumer.opts.partition)
+	reader := kafkaAPI.NewReader(kafkaAPI.ReaderConfig{
+		Brokers:  []string{fmt.Sprintf("%s:9092", kafkaConsumer.opts.addr)},
+		Topic:    kafkaConsumer.opts.topic,
+		MinBytes: 1,
+		MaxBytes: 10e6,
+		MaxWait:  100 * time.Millisecond,
+		//Logger:   newTestKafkaLogger(t, ""),
+	})
+	kafkaConsumer.reader = reader
+	//kafkaConsumer.shutdown = shutdown
 	fmt.Printf("get data.\n")
 	GetData()
-	shutdown()
 	fmt.Printf("shutdown now!!!\n")
-	//return err
+	defer reader.Close()
 }
 
-func newLocalClient(address string) (*kafkaAPI.Client, func()) {
-	return newClient(kafkaAPI.TCP(address))
-}
+// func newLocalClient(address string) (*kafkaAPI.Client, func()) {
+// 	return newClient(kafkaAPI.TCP(address))
+// }
 
-func newClient(addr net.Addr) (*kafkaAPI.Client, func()) {
-	conns := &ktesting.ConnWaitGroup{
-		DialFunc: (&net.Dialer{}).DialContext,
-	}
+// func newClient(addr net.Addr) (*kafkaAPI.Client, func()) {
+// 	conns := &ktesting.ConnWaitGroup{
+// 		DialFunc: (&net.Dialer{}).DialContext,
+// 	}
 
-	transport := &kafkaAPI.Transport{
-		Dial:     conns.Dial,
-		Resolver: kafkaAPI.NewBrokerResolver(nil),
-	}
+// 	transport := &kafkaAPI.Transport{
+// 		Dial:     conns.Dial,
+// 		Resolver: kafkaAPI.NewBrokerResolver(nil),
+// 	}
 
-	client := &kafkaAPI.Client{
-		Addr:      addr,
-		Timeout:   5 * time.Second,
-		Transport: transport,
-	}
+// 	client := &kafkaAPI.Client{
+// 		Addr:      addr,
+// 		Timeout:   5 * time.Second,
+// 		Transport: transport,
+// 	}
 
-	return client, func() { transport.CloseIdleConnections(); conns.Wait() }
-}
+// 	return client, func() { transport.CloseIdleConnections(); conns.Wait() }
+// }
 
-func newLocalClientAndTopic(address string, topic string, partition int) (*kafkaAPI.Client, func()) {
-	//topic := makeTopic()
-	client, shutdown := newLocalClientWithTopic(address, topic, partition)
-	return client, shutdown
-}
+// func newLocalClientAndTopic(address string, topic string, partition int) (*kafkaAPI.Client, func()) {
+// 	//topic := makeTopic()
+// 	client, shutdown := newLocalClientWithTopic(address, topic, partition)
+// 	return client, shutdown
+// }
 
-func newLocalClientWithTopic(address string, topic string, partitions int) (*kafkaAPI.Client, func()) {
-	client, shutdown := newLocalClient(address)
-	if err := clientCreateTopic(client, topic, partitions); err != nil {
-		shutdown()
-		panic(err)
-	}
-	return client, func() {
-		client.DeleteTopics(context.Background(), &kafkaAPI.DeleteTopicsRequest{
-			Topics: []string{topic},
-		})
-		shutdown()
-	}
-}
+// func newLocalClientWithTopic(address string, topic string, partitions int) (*kafkaAPI.Client, func()) {
+// 	client, shutdown := newLocalClient(address)
+// 	if err := clientCreateTopic(client, topic, partitions); err != nil {
+// 		shutdown()
+// 		panic(err)
+// 	}
+// 	return client, func() {
+// 		client.DeleteTopics(context.Background(), &kafkaAPI.DeleteTopicsRequest{
+// 			Topics: []string{topic},
+// 		})
+// 		shutdown()
+// 	}
+// }
 
-func clientCreateTopic(client *kafkaAPI.Client, topic string, partitions int) error {
-	_, err := client.CreateTopics(context.Background(), &kafkaAPI.CreateTopicsRequest{
-		Topics: []kafkaAPI.TopicConfig{{
-			Topic:             topic,
-			NumPartitions:     partitions,
-			ReplicationFactor: 1,
-		}},
-	})
-	if err != nil {
-		return err
-	}
+// func clientCreateTopic(client *kafkaAPI.Client, topic string, partitions int) error {
+// 	_, err := client.CreateTopics(context.Background(), &kafkaAPI.CreateTopicsRequest{
+// 		Topics: []kafkaAPI.TopicConfig{{
+// 			Topic:             topic,
+// 			NumPartitions:     partitions,
+// 			ReplicationFactor: 1,
+// 		}},
+// 	})
+// 	if err != nil {
+// 		return err
+// 	}
 
-	// Topic creation seems to be asynchronous. Metadata for the topic partition
-	// layout in the cluster is available in the controller before being synced
-	// with the other brokers, which causes "Error:[3] Unknown Topic Or Partition"
-	// when sending requests to the partition leaders.
-	//
-	// This loop will wait up to 2 seconds polling the cluster until no errors
-	// are returned.
-	for i := 0; i < 20; i++ {
-		r, err := client.Fetch(context.Background(), &kafkaAPI.FetchRequest{
-			Topic:     topic,
-			Partition: 0,
-			Offset:    0,
-		})
-		if err == nil && r.Error == nil {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+// 	// Topic creation seems to be asynchronous. Metadata for the topic partition
+// 	// layout in the cluster is available in the controller before being synced
+// 	// with the other brokers, which causes "Error:[3] Unknown Topic Or Partition"
+// 	// when sending requests to the partition leaders.
+// 	//
+// 	// This loop will wait up to 2 seconds polling the cluster until no errors
+// 	// are returned.
+// 	for i := 0; i < 20; i++ {
+// 		r, err := client.Fetch(context.Background(), &kafkaAPI.FetchRequest{
+// 			Topic:     topic,
+// 			Partition: 0,
+// 			Offset:    0,
+// 		})
+// 		if err == nil && r.Error == nil {
+// 			break
+// 		}
+// 		time.Sleep(100 * time.Millisecond)
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // 获取消息发送到队列中去
 func GetData() {
@@ -149,14 +150,7 @@ func GetData() {
 		// default:
 		// 接收消息
 		fmt.Printf("start fetch data")
-		res, err := kafkaConsumer.client.Fetch(context.Background(), &kafkaAPI.FetchRequest{
-			Topic:     kafkaConsumer.opts.topic,
-			Partition: kafkaConsumer.opts.partition,
-			Offset:    0,
-			MinBytes:  1,
-			MaxBytes:  64 * 1024,
-			MaxWait:   100 * time.Millisecond,
-		})
+		res, err := kafkaConsumer.reader.ReadMessage(context.Background())
 		if err != nil {
 			//t.Fatal(err)
 			fmt.Printf("%v", err)
