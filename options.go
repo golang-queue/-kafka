@@ -79,5 +79,11 @@ func WithLogger(l queue.Logger) Option {
 
 func newOptions(opts ...Option) options {
 	defaultOpts := options{}
+
+	for _, opt := range opts {
+		// Call the option giving the instantiated
+		opt(&defaultOpts)
+	}
+
 	return defaultOpts
 }
