@@ -22,6 +22,7 @@ type KafkaConsumer struct {
 	//stopFlag int32
 	opts   options
 	reader *kafkaAPI.Reader
+	ring   queueAPI.Ring
 }
 type ConnWaitGroup struct {
 	DialFunc func(context.Context, string, string) (net.Conn, error)
