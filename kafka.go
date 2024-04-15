@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang-queue/queue"
 	"github.com/golang-queue/queue/core"
+	"github.com/golang-queue/queue/job"
 	kafkaAPI "github.com/segmentio/kafka-go"
 )
 
@@ -22,7 +23,7 @@ type KafkaConsumer struct {
 	//stopFlag int32
 	opts   options
 	reader *kafkaAPI.Reader
-	ring   queueAPI.Ring
+	ring   *queue.Ring
 }
 type ConnWaitGroup struct {
 	DialFunc func(context.Context, string, string) (net.Conn, error)
@@ -53,7 +54,7 @@ func InitConsumer(opts ...Option) {
 	kafkaConsumer.reader = reader
 	//kafkaConsumer.shutdown = shutdown
 	fmt.Printf("get data.\n")
-	GetData()
+	//GetData()
 	fmt.Printf("shutdown now!!!\n")
 	defer reader.Close()
 }
@@ -136,7 +137,7 @@ func InitConsumer(opts ...Option) {
 // }
 
 // 获取消息发送到队列中去
-func GetData() {
+func (kafkaConsumer *KafkaConsumer) GetData() {
 	for {
 		// select {
 		// case <-time.After(leftTime):
@@ -154,7 +155,12 @@ func GetData() {
 			fmt.Printf("%v", err)
 		}
 		// 打印出消息，后续放入队列中去
-		fmt.Printf("%v", res)
+		m := &job.Message{
+			Timeout: 100 * time.Millisecond,
+			Payload: res.Value,
+		}
+		kafkaConsumer.ring.Queue(m)
+		fmt.Printf("%v", m)
 		// }
 	}
 }
@@ -168,6 +174,7 @@ type Worker struct {
 	// startOnce sync.Once
 	opts options
 	conn *kafkaAPI.Conn
+	//ring *queue.Ring
 }
 
 func NewWorker(opts ...Option) *Worker {
