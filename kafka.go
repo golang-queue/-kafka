@@ -17,7 +17,6 @@ import (
 var _ core.Worker = (*Worker)(nil)
 
 // one consumer connect to kafka broker
-var kafkaConsumer *KafkaConsumer
 
 type KafkaConsumer struct {
 	//stopFlag int32
@@ -31,9 +30,9 @@ type ConnWaitGroup struct {
 }
 
 // start consumer, get message from kafka
-func InitConsumer(opts ...Option) {
+func InitConsumer(opts ...Option) *KafkaConsumer {
 	//var err error
-	kafkaConsumer = &KafkaConsumer{
+	tKafkaConsumer := &KafkaConsumer{
 		opts: newOptions(opts...),
 	}
 
@@ -44,19 +43,20 @@ func InitConsumer(opts ...Option) {
 	// client, shutdown := newLocalClientAndTopic(kafkaConsumer.opts.addr, kafkaConsumer.opts.topic,
 	// 	kafkaConsumer.opts.partition)
 	reader := kafkaAPI.NewReader(kafkaAPI.ReaderConfig{
-		Brokers:  []string{fmt.Sprintf("%s:9092", kafkaConsumer.opts.addr)},
-		Topic:    kafkaConsumer.opts.topic,
+		Brokers:  []string{fmt.Sprintf("%s:9092", tKafkaConsumer.opts.addr)},
+		Topic:    tKafkaConsumer.opts.topic,
 		MinBytes: 1,
 		MaxBytes: 10e6,
 		MaxWait:  100 * time.Millisecond,
 		//Logger:   newTestKafkaLogger(t, ""),
 	})
-	kafkaConsumer.reader = reader
+	tKafkaConsumer.reader = reader
 	//kafkaConsumer.shutdown = shutdown
 	fmt.Printf("get data.\n")
 	//GetData()
 	fmt.Printf("shutdown now!!!\n")
-	defer reader.Close()
+	// defer reader.Close()
+	return tKafkaConsumer
 }
 
 // func newLocalClient(address string) (*kafkaAPI.Client, func()) {
@@ -165,6 +165,7 @@ func (kafkaConsumer *KafkaConsumer) GetData() {
 	}
 }
 
+// 这里包含了回调函数，没有线程
 type Worker struct {
 	//
 	//shutdown  func() //
@@ -175,6 +176,7 @@ type Worker struct {
 	opts options
 	conn *kafkaAPI.Conn
 	//ring *queue.Ring
+	kafkaConsumer *KafkaConsumer
 }
 
 func NewWorker(opts ...Option) *Worker {
@@ -191,18 +193,11 @@ func NewWorker(opts ...Option) *Worker {
 	if err != nil {
 		w.opts.logger.Fatal("can't connect kafka: ", err)
 	}
-
+	// 启动kakfaConsumer
+	w.kafkaConsumer = InitConsumer(opts...)
+	// 开始启动协程，获取数据
+	go w.kafkaConsumer.GetData()
 	return w
-}
-
-func (w *Worker) startConsumer() (err error) {
-
-	// err := nil
-
-	// if err != nil {
-	// 	//
-	// }
-	return err
 }
 
 // Run start the worker
@@ -212,7 +207,9 @@ func (w *Worker) Run(ctx context.Context, task core.QueuedMessage) error {
 
 // Shutdown worker
 func (w *Worker) Shutdown() (err error) {
+	// 关闭fakfa的连接
 
+	w.kafkaConsumer.ring.Shutdown()
 	return err
 }
 
@@ -240,8 +237,11 @@ func (w *Worker) Queue(job core.QueuedMessage) (err error) {
 	return err
 }
 
+// get data from ring
+// 这个函数是倍queue.go中的coroutine调用的回调函数
 func (w *Worker) Request() (core.QueuedMessage, error) {
-	_ = w.startConsumer()
-	return nil, queue.ErrNoTaskInQueue
-
+	//_ = w.startConsumer()
+	//从ring中获取数据
+	return w.kafkaConsumer.ring.Request()
+	//return nil, queue.ErrNoTaskInQueue
 }
