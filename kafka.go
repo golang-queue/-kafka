@@ -39,6 +39,8 @@ func InitConsumer(opts ...Option) *KafkaConsumer {
 	_, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	//初始化ring
+	tKafkaConsumer.ring = queue.NewRing()
 	// 创建client，创建topic，创建shutdown
 	// client, shutdown := newLocalClientAndTopic(kafkaConsumer.opts.addr, kafkaConsumer.opts.topic,
 	// 	kafkaConsumer.opts.partition)
